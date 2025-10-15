@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowLeft, Send } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Send, Heart, Check, CheckCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Conversation {
@@ -18,7 +19,11 @@ interface Conversation {
     username: string;
     full_name: string;
     avatar_url: string;
+    is_active: boolean;
+    last_active: string | null;
   };
+  last_message: Message | null;
+  unread_count: number;
 }
 
 interface Message {
@@ -28,6 +33,30 @@ interface Message {
   content: string;
   created_at: string;
   read: boolean;
+  reacted: boolean;
+  delivered_at?: string;
+  seen_at?: string;
+}
+
+// Define the database schema type
+interface DbMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  read: boolean;
+  reacted: boolean;
+  delivered_at?: string;
+  seen_at?: string;
+}
+
+// Add this type to define the update payload
+type MessageUpdate = {
+  reacted?: boolean;
+  delivered_at?: string;
+  seen_at?: string;
+  read?: boolean;
 }
 
 const Messages = () => {
@@ -40,6 +69,7 @@ const Messages = () => {
   const [newMessage, setNewMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadCurrentUser();
@@ -66,13 +96,22 @@ const Messages = () => {
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'messages',
             filter: `conversation_id=eq.${selectedConversation}`,
           },
           (payload) => {
-            setMessages((prev) => [...prev, payload.new as Message]);
+            if (payload.eventType === 'INSERT') {
+              setMessages((prev) => [...prev, payload.new as Message]);
+              scrollToBottom();
+            } else if (payload.eventType === 'UPDATE') {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === (payload.new as Message).id ? (payload.new as Message) : msg
+                )
+              );
+            }
           }
         )
         .subscribe();
@@ -82,6 +121,14 @@ const Messages = () => {
       };
     }
   }, [selectedConversation]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const loadCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -106,15 +153,45 @@ const Messages = () => {
             ? conv.participant_2_id 
             : conv.participant_1_id;
 
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, username, full_name, avatar_url')
-            .eq('user_id', otherUserId)
-            .single();
+          const [profileResponse, lastMessageResponse, unreadCountResponse] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('id, username, full_name, avatar_url')
+              .eq('user_id', otherUserId)
+              .single(),
+            supabase
+              .from('messages')
+              .select('id, conversation_id, sender_id, content, created_at, read')
+              .eq('conversation_id', conv.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single(),
+            supabase
+              .from('messages')
+              .select('id', { count: 'exact' })
+              .eq('conversation_id', conv.id)
+              .eq('sender_id', otherUserId)
+              .is('seen_at', null)
+          ]);
+
+          const profile = profileResponse.data;
+          const lastMessage = lastMessageResponse.data;
+          const unreadCount = unreadCountResponse.count || 0;
 
           return {
             ...conv,
-            other_user: profile || { id: otherUserId, username: 'Unknown', full_name: 'Unknown User', avatar_url: '' }
+            other_user: {
+              ...(profile || { id: otherUserId, username: 'Unknown', full_name: 'Unknown User', avatar_url: '' }),
+              is_active: false,
+              last_active: null
+            },
+            last_message: lastMessage ? {
+              ...lastMessage,
+              reacted: false,
+              delivered_at: null,
+              seen_at: null
+            } : null,
+            unread_count: unreadCount
           };
         })
       );
@@ -208,15 +285,67 @@ const Messages = () => {
     try {
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select('id, conversation_id, sender_id, content, created_at, read')
         .eq('conversation_id', selectedConversation)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setMessages(data || []);
+      
+      // Transform the data to include default values for missing fields
+      const transformedMessages = (data || []).map(msg => ({
+        ...msg,
+        reacted: false,
+        delivered_at: null,
+        seen_at: null
+      }));
+      
+      setMessages(transformedMessages);
+      
+      // Mark messages as read since we don't have delivered/seen status yet
+      const unreadMessages = data?.filter(
+        msg => msg.sender_id !== currentUserId && !msg.read
+      ) || [];
+      
+      if (unreadMessages.length > 0) {
+        await supabase
+          .from('messages')
+          .update({ read: true })
+          .in('id', unreadMessages.map(msg => msg.id));
+      }
     } catch (error) {
       console.error('Error loading messages:', error);
     }
+  };
+
+  const handleReaction = async (messageId: string) => {
+    // Reactions feature is disabled until database migration is applied
+    console.warn('Message reactions are not yet available');
+  };
+
+  const updateLastSeen = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('participant_1_id, participant_2_id')
+        .eq('id', selectedConversation)
+        .single();
+
+      // Mark messages as read since we don't have seen status yet
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('conversation_id', selectedConversation)
+        .eq('sender_id', conv.participant_1_id === currentUserId ? conv.participant_2_id : conv.participant_1_id)
+        .eq('read', false);
+    } catch (error) {
+      console.error('Error updating read status:', error);
+    }
+  };
+
+  const handleConversationClick = (convId: string) => {
+    setSelectedConversation(convId);
   };
 
   const sendMessage = async () => {
@@ -283,18 +412,35 @@ const Messages = () => {
               conversations.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => setSelectedConversation(conv.id)}
+                  onClick={() => handleConversationClick(conv.id)}
                   className={`w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors border-b ${
                     selectedConversation === conv.id ? 'bg-muted' : ''
                   }`}
                 >
-                  <Avatar>
-                    <AvatarImage src={conv.other_user.avatar_url} />
-                    <AvatarFallback>{conv.other_user.username?.[0]?.toUpperCase()}</AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar>
+                      <AvatarImage src={conv.other_user.avatar_url} />
+                      <AvatarFallback>{conv.other_user.username?.[0]?.toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    {conv.other_user.is_active && (
+                      <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+                    )}
+                  </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold">{conv.other_user.username}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold">{conv.other_user.username}</p>
+                      {conv.unread_count > 0 && (
+                        <Badge variant="secondary" className="rounded-full">
+                          {conv.unread_count}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">{conv.other_user.full_name}</p>
+                    {conv.last_message && (
+                      <p className="text-sm text-muted-foreground truncate mt-1">
+                        {conv.last_message.sender_id === currentUserId ? 'You: ' : ''}{conv.last_message.content}
+                      </p>
+                    )}
                   </div>
                 </button>
               ))
@@ -327,23 +473,33 @@ const Messages = () => {
               </div>
 
               {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
+              <ScrollArea className="flex-1 p-4" ref={messagesEndRef}>
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`mb-4 flex ${message.sender_id === currentUserId ? 'justify-end' : 'justify-start'}`}
+                    className={`group mb-4 flex ${message.sender_id === currentUserId ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div
-                      className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                        message.sender_id === currentUserId
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      <p className="break-words">{message.content}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                    <div className="flex flex-col items-end">
+                      <div
+                        className={`relative max-w-[70%] rounded-2xl px-4 py-2 ${
+                          message.sender_id === currentUserId
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                        }`}
+                        onDoubleClick={() => message.sender_id !== currentUserId && handleReaction(message.id)}
+                      >
+                        <p className="break-words">{message.content}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs opacity-70">
+                            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                          {message.sender_id === currentUserId && message.read && (
+                            <span className="text-xs">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}

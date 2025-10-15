@@ -114,7 +114,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-12 px-4">
         <div className="max-w-6xl mx-auto text-center text-muted-foreground">
-          <p>&copy; 2025 TimePass. Built with Lovable Cloud.</p>
+          <p>&copy; 2025 TimePass.</p>
         </div>
       </footer>
     </div>

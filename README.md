@@ -1,22 +1,28 @@
-# Welcome to your Lovable project
+# TimePass - Social Media Application
 
-## Project info
+A modern social media application for sharing photos, videos, and connecting with friends.
 
-**URL**: https://lovable.dev/projects/5d8b7461-1220-48fc-b5ec-d4f26b7736ad
+## Technologies Used
 
-## How can I edit this code?
+This project is built with:
 
-There are several ways of editing your application.
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
+- Supabase
 
-**Use Lovable**
+## Getting Started
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/5d8b7461-1220-48fc-b5ec-d4f26b7736ad) and start prompting.
+### Prerequisites
 
-Changes made via Lovable will be committed automatically to this repo.
+- Node.js 18+ and npm
+- Git
 
-**Use your preferred IDE**
+### Local Development
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+If you want to work locally using your own IDE, you can clone this repo and push changes to collaborate with your team.
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -62,12 +68,11 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/5d8b7461-1220-48fc-b5ec-d4f26b7736ad) and click on Share -> Publish.
+## Deployment
 
-## Can I connect a custom domain to my Lovable project?
+Build the project for production:
+```sh
+npm run build
+```
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+The build output will be in the `dist` directory.
