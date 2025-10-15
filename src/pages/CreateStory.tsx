@@ -27,6 +27,21 @@ const CreateStory = () => {
     reader.readAsDataURL(selectedFile);
   };
 
+  const handleSaveToDevice = () => {
+    if (!preview || !file) {
+      toast.error("No file to save");
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = preview;
+    link.download = `story-${Date.now()}.${file.name.split('.').pop()}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Story saved to your device!");
+  };
+
   const handleUpload = async () => {
     if (!file) {
       toast.error("Please select a file");
@@ -41,7 +56,7 @@ const CreateStory = () => {
 
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `stories/${fileName}`;
+      const filePath = `stories/${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("posts")
@@ -63,7 +78,7 @@ const CreateStory = () => {
 
       if (insertError) throw insertError;
 
-      toast.success("Story created successfully!");
+      toast.success("Story shared successfully!");
       navigate("/feed");
     } catch (error: any) {
       console.error("Error creating story:", error);
@@ -81,17 +96,26 @@ const CreateStory = () => {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="text-xl font-bold">Create Story</h1>
-          <Button
-            onClick={handleUpload}
-            disabled={uploading || !file}
-            className="bg-gradient-to-r from-[hsl(291,64%,42%)] via-[hsl(340,82%,52%)] to-[hsl(25,95%,53%)]"
-          >
-            {uploading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              "Share"
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSaveToDevice}
+              disabled={!file}
+            >
+              Save
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={uploading || !file}
+              className="bg-gradient-to-r from-[hsl(291,64%,42%)] via-[hsl(340,82%,52%)] to-[hsl(25,95%,53%)]"
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "Share"
+              )}
+            </Button>
+          </div>
         </div>
       </header>
 

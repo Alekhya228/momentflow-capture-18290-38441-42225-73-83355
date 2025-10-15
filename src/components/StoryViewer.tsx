@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
@@ -61,6 +61,23 @@ const StoryViewer = ({ stories, initialIndex, onClose }: StoryViewerProps) => {
     }
   };
 
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(currentStory.media_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `story-${currentStory.id}.${currentStory.media_type === 'image' ? 'jpg' : 'mp4'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading story:", error);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
       {/* Progress bars */}
@@ -95,9 +112,14 @@ const StoryViewer = ({ stories, initialIndex, onClose }: StoryViewerProps) => {
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="w-6 h-6 text-white" />
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={handleDownload}>
+            <Download className="w-5 h-5 text-white" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="w-6 h-6 text-white" />
+          </Button>
+        </div>
       </div>
 
       {/* Navigation */}

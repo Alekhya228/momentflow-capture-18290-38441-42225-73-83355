@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Heart, MessageCircle, Share2, Repeat2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, Repeat2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -75,6 +75,27 @@ const PostCard = ({ post, likesCount, commentsCount, isLiked, currentUserId }: P
     toast.info("Repost feature coming soon!");
   };
 
+  const handleDownload = async () => {
+    if (!post.media_url) return;
+    
+    try {
+      const response = await fetch(post.media_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `post-${post.id}.${post.media_type === 'image' ? 'jpg' : 'mp4'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Downloaded successfully!");
+    } catch (error) {
+      console.error("Error downloading:", error);
+      toast.error("Failed to download");
+    }
+  };
+
   return (
     <div className="border-b border-border p-4 hover:bg-accent/5 transition-colors">
       <div className="flex gap-3">
@@ -106,7 +127,7 @@ const PostCard = ({ post, likesCount, commentsCount, isLiked, currentUserId }: P
           )}
 
           {post.media_url && (
-            <div className="mt-3 rounded-lg overflow-hidden">
+            <div className="mt-3 rounded-lg overflow-hidden relative group">
               {post.media_type === "image" ? (
                 <img
                   src={post.media_url}
@@ -120,6 +141,14 @@ const PostCard = ({ post, likesCount, commentsCount, isLiked, currentUserId }: P
                   className="w-full max-h-[500px]"
                 />
               ) : null}
+              <Button
+                variant="secondary"
+                size="icon"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={handleDownload}
+              >
+                <Download className="w-4 h-4" />
+              </Button>
             </div>
           )}
 

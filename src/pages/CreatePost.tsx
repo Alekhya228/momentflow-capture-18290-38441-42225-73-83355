@@ -28,6 +28,21 @@ const CreatePost = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleSaveToDevice = () => {
+    if (!mediaPreview || !mediaFile) {
+      toast.error("No media to save");
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = mediaPreview;
+    link.download = `post-${Date.now()}.${mediaFile.name.split('.').pop()}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Media saved to your device!");
+  };
+
   const handlePost = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -72,7 +87,7 @@ const CreatePost = () => {
 
       if (error) throw error;
 
-      toast.success("Post created successfully");
+      toast.success("Post created successfully!");
       navigate("/feed");
     } catch (error: any) {
       console.error("Error creating post:", error);
@@ -90,9 +105,16 @@ const CreatePost = () => {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="text-xl font-semibold">Create Post</h1>
-          <Button variant="ghost" onClick={handlePost} disabled={posting || (!content.trim() && !mediaFile)}>
-            {posting ? "Posting..." : "Post"}
-          </Button>
+          <div className="flex gap-2">
+            {mediaFile && (
+              <Button variant="outline" onClick={handleSaveToDevice}>
+                Save
+              </Button>
+            )}
+            <Button onClick={handlePost} disabled={posting || (!content.trim() && !mediaFile)}>
+              {posting ? "Posting..." : "Post"}
+            </Button>
+          </div>
         </div>
       </header>
 
