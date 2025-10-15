@@ -141,6 +141,31 @@ const Messages = () => {
         return;
       }
 
+      // Check if users are mutual followers before creating conversation
+      const { data: followingThem } = await supabase
+        .from('follows')
+        .select('*')
+        .eq('follower_id', currentUserId)
+        .eq('following_id', otherUserId)
+        .maybeSingle();
+
+      const { data: followingMe } = await supabase
+        .from('follows')
+        .select('*')
+        .eq('follower_id', otherUserId)
+        .eq('following_id', currentUserId)
+        .maybeSingle();
+
+      if (!followingThem || !followingMe) {
+        toast({
+          title: 'Cannot start conversation',
+          description: 'You can only message users you both follow',
+          variant: 'destructive',
+        });
+        navigate('/feed');
+        return;
+      }
+
       // Create new conversation
       const { data: newConv, error } = await supabase
         .from('conversations')
@@ -151,7 +176,19 @@ const Messages = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // If error is RLS related, show friendly message
+        if (error.message.includes('row-level security')) {
+          toast({
+            title: 'Cannot start conversation',
+            description: 'You can only message mutual followers',
+            variant: 'destructive',
+          });
+          navigate('/feed');
+          return;
+        }
+        throw error;
+      }
 
       setSelectedConversation(newConv.id);
       loadConversations();

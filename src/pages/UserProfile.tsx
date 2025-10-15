@@ -41,6 +41,7 @@ const UserProfile = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [isMutualFollowers, setIsMutualFollowers] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -119,6 +120,16 @@ const UserProfile = () => {
           .single();
 
         setIsFollowing(!!followData);
+
+        // Check if they follow back (mutual followers)
+        const { data: followBackData } = await supabase
+          .from("follows")
+          .select("*")
+          .eq("follower_id", userId)
+          .eq("following_id", user.id)
+          .single();
+
+        setIsMutualFollowers(!!followData && !!followBackData);
 
         const { count: followersCount } = await supabase
           .from("follows")
@@ -227,7 +238,15 @@ const UserProfile = () => {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => navigate(`/messages?user=${userId}`)}
+                      onClick={() => {
+                        if (!isMutualFollowers) {
+                          toast.error("You can only message mutual followers");
+                          return;
+                        }
+                        navigate(`/messages?user=${userId}`);
+                      }}
+                      disabled={!isMutualFollowers}
+                      title={isMutualFollowers ? "Send message" : "Follow each other to message"}
                     >
                       <MessageCircle className="w-4 h-4" />
                     </Button>
